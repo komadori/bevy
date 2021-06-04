@@ -10,7 +10,7 @@ use std::mem::MaybeUninit;
 ///
 /// This struct is created by the [`Query::iter`](crate::system::Query::iter) and
 /// [`Query::iter_mut`](crate::system::Query::iter_mut) methods.
-pub struct QueryIter<'w, 's, Q: WorldQuery, F: WorldQuery>
+pub struct QueryIter<'w, 's, Q: WorldQuery, QF: Fetch<'w, State = Q::State>, F: WorldQuery>
 where
     F::Fetch: FilterFetch,
 {
@@ -20,14 +20,14 @@ where
     world: &'w World,
     table_id_iter: std::slice::Iter<'s, TableId>,
     archetype_id_iter: std::slice::Iter<'s, ArchetypeId>,
-    fetch: Q::Fetch,
+    fetch: QF,
     filter: F::Fetch,
     current_len: usize,
     current_index: usize,
     is_dense: bool,
 }
 
-impl<'w, 's, Q: WorldQuery, F: WorldQuery> QueryIter<'w, 's, Q, F>
+impl<'w, 's, Q: WorldQuery, QF: Fetch<'w, State = Q::State>, F: WorldQuery> QueryIter<'w, 's, Q, QF, F>
 where
     F::Fetch: FilterFetch,
 {
@@ -42,7 +42,7 @@ where
         last_change_tick: u32,
         change_tick: u32,
     ) -> Self {
-        let fetch = <Q::Fetch as Fetch>::init(
+        let fetch = QF::init(
             world,
             &query_state.fetch_state,
             last_change_tick,
@@ -127,11 +127,11 @@ where
     }
 }
 
-impl<'w, 's, Q: WorldQuery, F: WorldQuery> Iterator for QueryIter<'w, 's, Q, F>
+impl<'w, 's, Q: WorldQuery, QF : Fetch<'w, State = Q::State>, F: WorldQuery> Iterator for QueryIter<'w, 's, Q, QF, F>
 where
     F::Fetch: FilterFetch,
 {
-    type Item = <Q::Fetch as Fetch<'w>>::Item;
+    type Item = QF::Item;
 
     // NOTE: If you are changing query iteration code, remember to update the following places, where relevant:
     // QueryIter, QueryIterationCursor, QueryState::for_each_unchecked_manual, QueryState::par_for_each_unchecked_manual
@@ -394,7 +394,7 @@ where
 // (2) each archetype pre-computes length
 // (3) there are no per-entity filters
 // TODO: add an ArchetypeOnlyFilter that enables us to implement this for filters like With<T>
-impl<'w, 's, Q: WorldQuery> ExactSizeIterator for QueryIter<'w, 's, Q, ()> {
+impl<'w, 's, Q: WorldQuery, QF: Fetch<'w, State = Q::State>> ExactSizeIterator for QueryIter<'w, 's, Q, QF, ()> {
     fn len(&self) -> usize {
         self.query_state
             .matched_archetypes

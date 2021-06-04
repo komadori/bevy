@@ -146,15 +146,15 @@ where
     ///
     /// This can only be called for read-only queries, see [`Self::iter_mut`] for write-queries.
     #[inline]
-    pub fn iter(&self) -> QueryIter<'_, '_, Q, F>
+    pub fn iter(&self) -> QueryIter<'w, '_, Q, Q::ReadOnlyFetch, F>
     where
-        Q::Fetch: ReadOnlyFetch,
+        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
     {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
             self.state
-                .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
+                .iter_unchecked_manual::<Q::ReadOnlyFetch>(self.world, self.last_change_tick, self.change_tick)
         }
     }
 
@@ -183,12 +183,12 @@ where
 
     /// Returns an [`Iterator`] over the query results.
     #[inline]
-    pub fn iter_mut(&mut self) -> QueryIter<'_, '_, Q, F> {
+    pub fn iter_mut(&mut self) -> QueryIter<'_, '_, Q, Q::Fetch, F> {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
             self.state
-                .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
+                .iter_unchecked_manual::<Q::Fetch>(self.world, self.last_change_tick, self.change_tick)
         }
     }
 
@@ -235,11 +235,11 @@ where
     /// This function makes it possible to violate Rust's aliasing guarantees. You must make sure
     /// this call does not result in multiple mutable references to the same component
     #[inline]
-    pub unsafe fn iter_unsafe(&self) -> QueryIter<'_, '_, Q, F> {
+    pub unsafe fn iter_unsafe<QF: Fetch<'w, State=Q::State>>(&self) -> QueryIter<'w, '_, Q, QF, F> {
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         self.state
-            .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
+            .iter_unchecked_manual::<QF>(self.world, self.last_change_tick, self.change_tick)
     }
 
     /// Iterates over all possible combinations of `K` query results without repetition.
@@ -511,9 +511,9 @@ where
     /// ```
     ///
     /// This can only be called for read-only queries, see [`Self::single_mut`] for write-queries.
-    pub fn single(&self) -> Result<<Q::Fetch as Fetch<'_>>::Item, QuerySingleError>
+    pub fn single(&self) -> Result<<Q::ReadOnlyFetch as Fetch<'w>>::Item, QuerySingleError>
     where
-        Q::Fetch: ReadOnlyFetch,
+        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
     {
         let mut query = self.iter();
         let first = query.next();
@@ -543,14 +543,17 @@ where
             >())),
         }
     }
+}
 
+impl<'w, Q: WorldQuery, F: WorldQuery> Query<'w, Q, F>
+where
+    F::Fetch: FilterFetch,
+    Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
+{
     /// Returns true if this query contains no elements.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        // TODO: This code can be replaced with `self.iter().next().is_none()` if/when
-        // we sort out how to convert "write" queries to "read" queries.
-        self.state
-            .is_empty(self.world, self.last_change_tick, self.change_tick)
+        self.iter().next().is_none()
     }
 }
 

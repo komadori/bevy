@@ -71,6 +71,7 @@ pub struct With<T>(PhantomData<T>);
 impl<T: Component> WorldQuery for With<T> {
     type Fetch = WithFetch<T>;
     type State = WithState<T>;
+    type ReadOnlyFetch = WithFetch<T>;
 }
 
 /// The [`Fetch`] of [`With`].
@@ -190,6 +191,7 @@ pub struct Without<T>(PhantomData<T>);
 impl<T: Component> WorldQuery for Without<T> {
     type Fetch = WithoutFetch<T>;
     type State = WithoutState<T>;
+    type ReadOnlyFetch = WithoutFetch<T>;
 }
 
 /// The [`Fetch`] of [`Without`].
@@ -287,6 +289,7 @@ pub struct WithBundle<T: Bundle>(PhantomData<T>);
 impl<T: Bundle> WorldQuery for WithBundle<T> {
     type Fetch = WithBundleFetch<T>;
     type State = WithBundleState<T>;
+    type ReadOnlyFetch = WithBundleFetch<T>;
 }
 
 pub struct WithBundleFetch<T: Bundle> {
@@ -441,6 +444,7 @@ macro_rules! impl_query_filter_tuple {
         {
             type Fetch = Or<($(OrFetch<$filter::Fetch>,)*)>;
             type State = Or<($($filter::State,)*)>;
+            type ReadOnlyFetch = Or<($($filter::ReadOnlyFetch,)*)>;
         }
 
 
@@ -569,6 +573,7 @@ macro_rules! impl_tick_filter {
         impl<T: Component> WorldQuery for $name<T> {
             type Fetch = $fetch_name<T>;
             type State = $state_name<T>;
+            type ReadOnlyFetch = $fetch_name<T>;
         }
 
 

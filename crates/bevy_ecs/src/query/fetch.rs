@@ -43,6 +43,7 @@ use std::{
 pub trait WorldQuery {
     type Fetch: for<'a> Fetch<'a, State = Self::State>;
     type State: FetchState;
+    type ReadOnlyFetch; // This doesn't seem to work due to infinities in Or<> : for<'a> Fetch<'a, State = Self::State>;
 }
 
 pub trait Fetch<'w>: Sized {
@@ -134,6 +135,7 @@ pub unsafe trait ReadOnlyFetch {}
 impl WorldQuery for Entity {
     type Fetch = EntityFetch;
     type State = EntityState;
+    type ReadOnlyFetch = EntityFetch;
 }
 
 /// The [`Fetch`] of [`Entity`].
@@ -222,6 +224,7 @@ impl<'w> Fetch<'w> for EntityFetch {
 impl<T: Component> WorldQuery for &T {
     type Fetch = ReadFetch<T>;
     type State = ReadState<T>;
+    type ReadOnlyFetch = ReadFetch<T>;
 }
 
 /// The [`FetchState`] of `&T`.
@@ -382,6 +385,7 @@ impl<'w, T: Component> Fetch<'w> for ReadFetch<T> {
 impl<T: Component> WorldQuery for &mut T {
     type Fetch = WriteFetch<T>;
     type State = WriteState<T>;
+    type ReadOnlyFetch = ReadOnlyWriteFetch<T>;
 }
 
 /// The [`Fetch`] of `&mut T`.
@@ -397,6 +401,33 @@ pub struct WriteFetch<T> {
 }
 
 impl<T> Clone for WriteFetch<T> {
+    fn clone(&self) -> Self {
+        Self {
+            storage_type: self.storage_type,
+            table_components: self.table_components,
+            table_ticks: self.table_ticks,
+            entities: self.entities,
+            entity_table_rows: self.entity_table_rows,
+            sparse_set: self.sparse_set,
+            last_change_tick: self.last_change_tick,
+            change_tick: self.change_tick,
+        }
+    }
+}
+
+/// The [`ReadOnlyFetch`] of `&mut T`.
+pub struct ReadOnlyWriteFetch<T> {
+    storage_type: StorageType,
+    table_components: NonNull<T>,
+    table_ticks: *const UnsafeCell<ComponentTicks>,
+    entities: *const Entity,
+    entity_table_rows: *const usize,
+    sparse_set: *const ComponentSparseSet,
+    last_change_tick: u32,
+    change_tick: u32,
+}
+
+impl<T> Clone for ReadOnlyWriteFetch<T> {
     fn clone(&self) -> Self {
         Self {
             storage_type: self.storage_type,
@@ -567,9 +598,95 @@ impl<'w, T: Component> Fetch<'w> for WriteFetch<T> {
     }
 }
 
+impl<'w, T: Component> Fetch<'w> for ReadOnlyWriteFetch<T> {
+    type Item = &'w T;
+    type State = WriteState<T>;
+
+    #[inline]
+    fn is_dense(&self) -> bool {
+        match self.storage_type {
+            StorageType::Table => true,
+            StorageType::SparseSet => false,
+        }
+    }
+
+    unsafe fn init(
+        world: &World,
+        state: &Self::State,
+        last_change_tick: u32,
+        change_tick: u32,
+    ) -> Self {
+        let mut value = Self {
+            storage_type: state.storage_type,
+            table_components: NonNull::dangling(),
+            entities: ptr::null::<Entity>(),
+            entity_table_rows: ptr::null::<usize>(),
+            sparse_set: ptr::null::<ComponentSparseSet>(),
+            table_ticks: ptr::null::<UnsafeCell<ComponentTicks>>(),
+            last_change_tick,
+            change_tick,
+        };
+        if state.storage_type == StorageType::SparseSet {
+            value.sparse_set = world
+                .storages()
+                .sparse_sets
+                .get(state.component_id)
+                .unwrap();
+        }
+        value
+    }
+
+    #[inline]
+    unsafe fn set_archetype(
+        &mut self,
+        state: &Self::State,
+        archetype: &Archetype,
+        tables: &Tables,
+    ) {
+        match state.storage_type {
+            StorageType::Table => {
+                self.entity_table_rows = archetype.entity_table_rows().as_ptr();
+                let column = tables[archetype.table_id()]
+                    .get_column(state.component_id)
+                    .unwrap();
+                self.table_components = column.get_data_ptr().cast::<T>();
+                self.table_ticks = column.get_ticks_ptr();
+            }
+            StorageType::SparseSet => self.entities = archetype.entities().as_ptr(),
+        }
+    }
+
+    #[inline]
+    unsafe fn set_table(&mut self, state: &Self::State, table: &Table) {
+        let column = table.get_column(state.component_id).unwrap();
+        self.table_components = column.get_data_ptr().cast::<T>();
+        self.table_ticks = column.get_ticks_ptr();
+    }
+
+    #[inline]
+    unsafe fn archetype_fetch(&mut self, archetype_index: usize) -> Self::Item {
+        match self.storage_type {
+            StorageType::Table => {
+                let table_row = *self.entity_table_rows.add(archetype_index);
+                &*self.table_components.as_ptr().add(table_row)
+            }
+            StorageType::SparseSet => {
+                let entity = *self.entities.add(archetype_index);
+                &*(*self.sparse_set).get(entity).unwrap().cast::<T>()
+            }
+        }
+    }
+
+    #[inline]
+    unsafe fn table_fetch(&mut self, table_row: usize) -> Self::Item {
+        &*self.table_components.as_ptr().add(table_row)
+    }
+}
+
 impl<T: WorldQuery> WorldQuery for Option<T> {
     type Fetch = OptionFetch<T::Fetch>;
     type State = OptionState<T::State>;
+    type ReadOnlyFetch = OptionFetch<T::ReadOnlyFetch>;
 }
 
 /// The [`Fetch`] of `Option<T>`.
@@ -745,6 +862,7 @@ impl<T: Component> ChangeTrackers<T> {
 impl<T: Component> WorldQuery for ChangeTrackers<T> {
     type Fetch = ChangeTrackersFetch<T>;
     type State = ChangeTrackersState<T>;
+    type ReadOnlyFetch = ChangeTrackersFetch<T>;
 }
 
 /// The [`FetchState`] of [`ChangeTrackers`].
@@ -987,6 +1105,7 @@ macro_rules! impl_tuple_fetch {
         impl<$($name: WorldQuery),*> WorldQuery for ($($name,)*) {
             type Fetch = ($($name::Fetch,)*);
             type State = ($($name::State,)*);
+            type ReadOnlyFetch = ($($name::ReadOnlyFetch,)*);
         }
 
         /// SAFETY: each item in the tuple is read only

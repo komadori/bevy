@@ -73,7 +73,7 @@ where
         // SAFE: the iterator is instantly consumed via `none_remaining` and the implementation of
         // `QueryIter::none_remaining` never creates any references to the `<Q::Fetch as Fetch<'w>>::Item`.
         unsafe {
-            self.iter_unchecked_manual(world, last_change_tick, change_tick)
+            self.iter_unchecked_manual::<Q::Fetch>(world, last_change_tick, change_tick)
                 .none_remaining()
         }
     }
@@ -194,16 +194,16 @@ where
     }
 
     #[inline]
-    pub fn iter<'w, 's>(&'s mut self, world: &'w World) -> QueryIter<'w, 's, Q, F>
+    pub fn iter<'w, 's>(&'s mut self, world: &'w World) -> QueryIter<'w, 's, Q, Q::ReadOnlyFetch, F>
     where
-        Q::Fetch: ReadOnlyFetch,
+        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>,
     {
         // SAFETY: query is read only
         unsafe { self.iter_unchecked(world) }
     }
 
     #[inline]
-    pub fn iter_mut<'w, 's>(&'s mut self, world: &'w mut World) -> QueryIter<'w, 's, Q, F> {
+    pub fn iter_mut<'w, 's>(&'s mut self, world: &'w mut World) -> QueryIter<'w, 's, Q, Q::Fetch, F> {
         // SAFETY: query has unique world access
         unsafe { self.iter_unchecked(world) }
     }
@@ -234,12 +234,12 @@ where
     /// This does not check for mutable query correctness. To be safe, make sure mutable queries
     /// have unique access to the components they query.
     #[inline]
-    pub unsafe fn iter_unchecked<'w, 's>(
+    pub unsafe fn iter_unchecked<'w, 's, QF: Fetch<'w, State = Q::State>>(
         &'s mut self,
         world: &'w World,
-    ) -> QueryIter<'w, 's, Q, F> {
+    ) -> QueryIter<'w, 's, Q, QF, F> {
         self.validate_world_and_update_archetypes(world);
-        self.iter_unchecked_manual(world, world.last_change_tick(), world.read_change_tick())
+        self.iter_unchecked_manual::<QF>(world, world.last_change_tick(), world.read_change_tick())
     }
 
     /// # Safety
@@ -265,12 +265,12 @@ where
     /// This does not validate that `world.id()` matches `self.world_id`. Calling this on a `world`
     /// with a mismatched WorldId is unsound.
     #[inline]
-    pub(crate) unsafe fn iter_unchecked_manual<'w, 's>(
+    pub(crate) unsafe fn iter_unchecked_manual<'w, 's, QF: Fetch<'w, State = Q::State>>(
         &'s self,
         world: &'w World,
         last_change_tick: u32,
         change_tick: u32,
-    ) -> QueryIter<'w, 's, Q, F> {
+    ) -> QueryIter<'w, 's, Q, QF, F> {
         QueryIter::new(world, self, last_change_tick, change_tick)
     }
 
