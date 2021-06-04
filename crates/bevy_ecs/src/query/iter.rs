@@ -27,9 +27,10 @@ where
     is_dense: bool,
 }
 
-impl<'w, 's, Q: WorldQuery, QF: Fetch<'w, State = Q::State>, F: WorldQuery> QueryIter<'w, 's, Q, QF, F>
+impl<'w, 's, Q: WorldQuery, QF, F: WorldQuery> QueryIter<'w, 's, Q, QF, F>
 where
     F::Fetch: FilterFetch,
+    QF: Fetch<'w, State = Q::State>,
 {
     /// # Safety
     /// This does not check for mutable query correctness. To be safe, make sure mutable queries
@@ -127,8 +128,9 @@ where
     }
 }
 
-impl<'w, 's, Q: WorldQuery, QF : Fetch<'w, State = Q::State>, F: WorldQuery> Iterator for QueryIter<'w, 's, Q, QF, F>
+impl<'w, 's, Q: WorldQuery, QF, F: WorldQuery> Iterator for QueryIter<'w, 's, Q, QF, F>
 where
+    QF: Fetch<'w, State = Q::State>,
     F::Fetch: FilterFetch,
 {
     type Item = QF::Item;
@@ -394,7 +396,10 @@ where
 // (2) each archetype pre-computes length
 // (3) there are no per-entity filters
 // TODO: add an ArchetypeOnlyFilter that enables us to implement this for filters like With<T>
-impl<'w, 's, Q: WorldQuery, QF: Fetch<'w, State = Q::State>> ExactSizeIterator for QueryIter<'w, 's, Q, QF, ()> {
+impl<'w, 's, Q: WorldQuery, QF> ExactSizeIterator for QueryIter<'w, 's, Q, QF, ()>
+where
+    QF: Fetch<'w, State = Q::State>,
+{
     fn len(&self) -> usize {
         self.query_state
             .matched_archetypes

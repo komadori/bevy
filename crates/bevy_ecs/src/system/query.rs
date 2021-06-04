@@ -148,13 +148,16 @@ where
     #[inline]
     pub fn iter(&self) -> QueryIter<'w, '_, Q, Q::ReadOnlyFetch, F>
     where
-        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
+        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
     {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state
-                .iter_unchecked_manual::<Q::ReadOnlyFetch>(self.world, self.last_change_tick, self.change_tick)
+            self.state.iter_unchecked_manual::<Q::ReadOnlyFetch>(
+                self.world,
+                self.last_change_tick,
+                self.change_tick,
+            )
         }
     }
 
@@ -187,8 +190,11 @@ where
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state
-                .iter_unchecked_manual::<Q::Fetch>(self.world, self.last_change_tick, self.change_tick)
+            self.state.iter_unchecked_manual::<Q::Fetch>(
+                self.world,
+                self.last_change_tick,
+                self.change_tick,
+            )
         }
     }
 
@@ -235,7 +241,9 @@ where
     /// This function makes it possible to violate Rust's aliasing guarantees. You must make sure
     /// this call does not result in multiple mutable references to the same component
     #[inline]
-    pub unsafe fn iter_unsafe<QF: Fetch<'w, State=Q::State>>(&self) -> QueryIter<'w, '_, Q, QF, F> {
+    pub unsafe fn iter_unsafe<QF: Fetch<'w, State = Q::State>>(
+        &self,
+    ) -> QueryIter<'w, '_, Q, QF, F> {
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         self.state
@@ -513,7 +521,7 @@ where
     /// This can only be called for read-only queries, see [`Self::single_mut`] for write-queries.
     pub fn single(&self) -> Result<<Q::ReadOnlyFetch as Fetch<'w>>::Item, QuerySingleError>
     where
-        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
+        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
     {
         let mut query = self.iter();
         let first = query.next();
@@ -548,7 +556,7 @@ where
 impl<'w, Q: WorldQuery, F: WorldQuery> Query<'w, Q, F>
 where
     F::Fetch: FilterFetch,
-    Q::ReadOnlyFetch: Fetch<'w, State=Q::State>
+    Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
 {
     /// Returns true if this query contains no elements.
     #[inline]

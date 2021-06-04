@@ -196,14 +196,17 @@ where
     #[inline]
     pub fn iter<'w, 's>(&'s mut self, world: &'w World) -> QueryIter<'w, 's, Q, Q::ReadOnlyFetch, F>
     where
-        Q::ReadOnlyFetch: Fetch<'w, State=Q::State>,
+        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
     {
         // SAFETY: query is read only
         unsafe { self.iter_unchecked(world) }
     }
 
     #[inline]
-    pub fn iter_mut<'w, 's>(&'s mut self, world: &'w mut World) -> QueryIter<'w, 's, Q, Q::Fetch, F> {
+    pub fn iter_mut<'w, 's>(
+        &'s mut self,
+        world: &'w mut World,
+    ) -> QueryIter<'w, 's, Q, Q::Fetch, F> {
         // SAFETY: query has unique world access
         unsafe { self.iter_unchecked(world) }
     }
