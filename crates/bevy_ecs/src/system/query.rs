@@ -2,8 +2,8 @@ use crate::{
     component::Component,
     entity::Entity,
     query::{
-        Fetch, FilterFetch, QueryCombinationIter, QueryEntityError, QueryIter, QueryState,
-        ReadOnlyFetch, WorldQuery,
+        Fetch, FilterFetch, NopFetch, QueryCombinationIter, QueryEntityError, QueryIter,
+        QueryState, ReadOnlyFetch, WorldQuery,
     },
     world::{Mut, World},
 };
@@ -551,17 +551,12 @@ where
             >())),
         }
     }
-}
 
-impl<'w, Q: WorldQuery, F: WorldQuery> Query<'w, Q, F>
-where
-    F::Fetch: FilterFetch,
-    Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
-{
     /// Returns true if this query contains no elements.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.iter().next().is_none()
+        // SAFE: NopFetch does not access any members while &self ensures no one has exclusive access
+        unsafe { self.iter_unsafe::<NopFetch<Q::State>>().next().is_none() }
     }
 }
 

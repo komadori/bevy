@@ -1115,3 +1115,52 @@ macro_rules! impl_tuple_fetch {
 }
 
 all_tuples!(impl_tuple_fetch, 0, 15, F, S);
+
+/// [`Fetch`] that does not actually fetch anything
+///
+/// Mostly useful when something is generic over the Fetch and you don't want to fetch as you will discard the result
+pub struct NopFetch<State> {
+    state: PhantomData<State>,
+}
+
+impl<'w, State: FetchState> Fetch<'w> for NopFetch<State> {
+    type Item = ();
+    type State = State;
+
+    #[inline(always)]
+    unsafe fn init(
+        _world: &World,
+        _state: &Self::State,
+        _last_change_tick: u32,
+        _change_tick: u32,
+    ) -> Self {
+        Self { state: PhantomData }
+    }
+
+    #[inline(always)]
+    fn is_dense(&self) -> bool {
+        false
+    }
+
+    #[inline(always)]
+    unsafe fn set_archetype(
+        &mut self,
+        _state: &Self::State,
+        _archetype: &Archetype,
+        _tables: &Tables,
+    ) {
+    }
+
+    #[inline(always)]
+    unsafe fn set_table(&mut self, _state: &Self::State, _table: &Table) {}
+
+    #[inline(always)]
+    unsafe fn archetype_fetch(&mut self, _archetype_index: usize) -> Self::Item {
+        ()
+    }
+
+    #[inline(always)]
+    unsafe fn table_fetch(&mut self, _table_row: usize) -> Self::Item {
+        ()
+    }
+}
