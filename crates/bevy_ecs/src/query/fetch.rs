@@ -1155,12 +1155,8 @@ impl<'w, State: FetchState> Fetch<'w> for NopFetch<State> {
     unsafe fn set_table(&mut self, _state: &Self::State, _table: &Table) {}
 
     #[inline(always)]
-    unsafe fn archetype_fetch(&mut self, _archetype_index: usize) -> Self::Item {
-        ()
-    }
+    unsafe fn archetype_fetch(&mut self, _archetype_index: usize) -> Self::Item {}
 
     #[inline(always)]
-    unsafe fn table_fetch(&mut self, _table_row: usize) -> Self::Item {
-        ()
-    }
+    unsafe fn table_fetch(&mut self, _table_row: usize) -> Self::Item {}
 }
