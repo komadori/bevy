@@ -146,18 +146,12 @@ where
     ///
     /// This can only be called for read-only queries, see [`Self::iter_mut`] for write-queries.
     #[inline]
-    pub fn iter(&self) -> QueryIter<'w, '_, Q, Q::ReadOnlyFetch, F>
-    where
-        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
-    {
+    pub fn iter(&self) -> QueryIter<'w, '_, Q, Q::ReadOnlyFetch, F> {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state.iter_unchecked_manual::<Q::ReadOnlyFetch>(
-                self.world,
-                self.last_change_tick,
-                self.change_tick,
-            )
+            self.state
+                .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
         }
     }
 
@@ -190,11 +184,8 @@ where
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state.iter_unchecked_manual::<Q::Fetch>(
-                self.world,
-                self.last_change_tick,
-                self.change_tick,
-            )
+            self.state
+                .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
         }
     }
 
@@ -247,7 +238,7 @@ where
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         self.state
-            .iter_unchecked_manual::<QF>(self.world, self.last_change_tick, self.change_tick)
+            .iter_unchecked_manual(self.world, self.last_change_tick, self.change_tick)
     }
 
     /// Iterates over all possible combinations of `K` query results without repetition.
@@ -518,11 +509,8 @@ where
     /// # let _check_that_its_a_system = player_scoring_system.system();
     /// ```
     ///
-    /// This can only be called for read-only queries, see [`Self::single_mut`] for write-queries.
-    pub fn single(&self) -> Result<<Q::ReadOnlyFetch as Fetch<'w>>::Item, QuerySingleError>
-    where
-        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
-    {
+    /// This can only return immutable results, see [`Self::single_mut`] for write-queries.
+    pub fn single(&self) -> Result<<Q::ReadOnlyFetch as Fetch<'w>>::Item, QuerySingleError> {
         let mut query = self.iter();
         let first = query.next();
         let extra = query.next().is_some();

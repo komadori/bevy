@@ -184,10 +184,10 @@ where
     }
 
     #[inline]
-    pub fn iter<'w, 's>(&'s mut self, world: &'w World) -> QueryIter<'w, 's, Q, Q::ReadOnlyFetch, F>
-    where
-        Q::ReadOnlyFetch: Fetch<'w, State = Q::State>,
-    {
+    pub fn iter<'w, 's>(
+        &'s mut self,
+        world: &'w World,
+    ) -> QueryIter<'w, 's, Q, Q::ReadOnlyFetch, F> {
         // SAFETY: query is read only
         unsafe { self.iter_unchecked(world) }
     }
@@ -232,7 +232,7 @@ where
         world: &'w World,
     ) -> QueryIter<'w, 's, Q, QF, F> {
         self.validate_world_and_update_archetypes(world);
-        self.iter_unchecked_manual::<QF>(world, world.last_change_tick(), world.read_change_tick())
+        self.iter_unchecked_manual(world, world.last_change_tick(), world.read_change_tick())
     }
 
     /// # Safety
