@@ -163,10 +163,9 @@ where
     /// - if K < N: all possible K-sized combinations of query results, without repetition
     /// - if K > N: empty set (no K-sized combinations exist)
     #[inline]
-    pub fn iter_combinations<const K: usize>(&self) -> QueryCombinationIter<'_, '_, Q, F, K>
-    where
-        Q::Fetch: ReadOnlyFetch,
-    {
+    pub fn iter_combinations<const K: usize>(
+        &self,
+    ) -> QueryCombinationIter<'_, '_, Q, Q::ReadOnlyFetch, F, K> {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
@@ -213,7 +212,7 @@ where
     #[inline]
     pub fn iter_combinations_mut<const K: usize>(
         &mut self,
-    ) -> QueryCombinationIter<'_, '_, Q, F, K> {
+    ) -> QueryCombinationIter<'_, '_, Q, Q::Fetch, F, K> {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
@@ -232,9 +231,7 @@ where
     /// This function makes it possible to violate Rust's aliasing guarantees. You must make sure
     /// this call does not result in multiple mutable references to the same component
     #[inline]
-    pub unsafe fn iter_unsafe<QF: Fetch<'w, State = Q::State>>(
-        &self,
-    ) -> QueryIter<'w, '_, Q, QF, F> {
+    pub unsafe fn iter_unsafe(&self) -> QueryIter<'w, '_, Q, Q::Fetch, F> {
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         self.state
@@ -250,7 +247,7 @@ where
     #[inline]
     pub unsafe fn iter_combinations_unsafe<const K: usize>(
         &self,
-    ) -> QueryCombinationIter<'_, '_, Q, F, K> {
+    ) -> QueryCombinationIter<'_, '_, Q, Q::Fetch, F, K> {
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         self.state.iter_combinations_unchecked_manual(
@@ -265,30 +262,28 @@ where
     ///
     /// This can only be called for read-only queries, see [`Self::for_each_mut`] for write-queries.
     #[inline]
-    pub fn for_each(&self, f: impl FnMut(<Q::Fetch as Fetch<'w>>::Item))
-    where
-        Q::Fetch: ReadOnlyFetch,
-    {
+    pub fn for_each<FN: FnMut(<Q::ReadOnlyFetch as Fetch<'w>>::Item)>(&self, f: FN) {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state.for_each_unchecked_manual(
-                self.world,
-                f,
-                self.last_change_tick,
-                self.change_tick,
-            )
+            self.state
+                .for_each_unchecked_manual::<Q::ReadOnlyFetch, FN>(
+                    self.world,
+                    f,
+                    self.last_change_tick,
+                    self.change_tick,
+                )
         };
     }
 
     /// Runs `f` on each query result. This is faster than the equivalent iter() method, but cannot
     /// be chained like a normal [`Iterator`].
     #[inline]
-    pub fn for_each_mut(&mut self, f: impl FnMut(<Q::Fetch as Fetch<'w>>::Item)) {
+    pub fn for_each_mut<FN: FnMut(<Q::Fetch as Fetch<'w>>::Item)>(&mut self, f: FN) {
         // SAFE: system runs without conflicts with other systems. same-system queries have runtime
         // borrow checks when they conflict
         unsafe {
-            self.state.for_each_unchecked_manual(
+            self.state.for_each_unchecked_manual::<Q::Fetch, FN>(
                 self.world,
                 f,
                 self.last_change_tick,
@@ -302,18 +297,18 @@ where
     /// This can only be called for read-only queries, see [`Self::par_for_each_mut`] for
     /// write-queries.
     #[inline]
-    pub fn par_for_each(
+    pub fn par_for_each<FN: Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone>(
         &self,
         task_pool: &TaskPool,
         batch_size: usize,
-        f: impl Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone,
+        f: FN,
     ) where
         Q::Fetch: ReadOnlyFetch,
     {
         // SAFE: system runs without conflicts with other systems. same-system queries have runtime
         // borrow checks when they conflict
         unsafe {
-            self.state.par_for_each_unchecked_manual(
+            self.state.par_for_each_unchecked_manual::<Q::Fetch, FN>(
                 self.world,
                 task_pool,
                 batch_size,
@@ -326,16 +321,16 @@ where
 
     /// Runs `f` on each query result in parallel using the given task pool.
     #[inline]
-    pub fn par_for_each_mut(
+    pub fn par_for_each_mut<FN: Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone>(
         &mut self,
         task_pool: &TaskPool,
         batch_size: usize,
-        f: impl Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone,
+        f: FN,
     ) {
         // SAFE: system runs without conflicts with other systems. same-system queries have runtime
         // borrow checks when they conflict
         unsafe {
-            self.state.par_for_each_unchecked_manual(
+            self.state.par_for_each_unchecked_manual::<Q::Fetch, FN>(
                 self.world,
                 task_pool,
                 batch_size,
@@ -350,14 +345,14 @@ where
     ///
     /// This can only be called for read-only queries, see [`Self::get_mut`] for write-queries.
     #[inline]
-    pub fn get(&self, entity: Entity) -> Result<<Q::Fetch as Fetch>::Item, QueryEntityError>
-    where
-        Q::Fetch: ReadOnlyFetch,
-    {
+    pub fn get(
+        &self,
+        entity: Entity,
+    ) -> Result<<Q::ReadOnlyFetch as Fetch>::Item, QueryEntityError> {
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state.get_unchecked_manual(
+            self.state.get_unchecked_manual::<Q::ReadOnlyFetch>(
                 self.world,
                 entity,
                 self.last_change_tick,
@@ -375,7 +370,7 @@ where
         // SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
         unsafe {
-            self.state.get_unchecked_manual(
+            self.state.get_unchecked_manual::<Q::Fetch>(
                 self.world,
                 entity,
                 self.last_change_tick,
@@ -394,11 +389,15 @@ where
     pub unsafe fn get_unchecked(
         &self,
         entity: Entity,
-    ) -> Result<<Q::Fetch as Fetch>::Item, QueryEntityError> {
+    ) -> Result<<Q::Fetch as Fetch<'w>>::Item, QueryEntityError> {
         // SEMI-SAFE: system runs without conflicts with other systems.
         // same-system queries have runtime borrow checks when they conflict
-        self.state
-            .get_unchecked_manual(self.world, entity, self.last_change_tick, self.change_tick)
+        self.state.get_unchecked_manual::<Q::Fetch>(
+            self.world,
+            entity,
+            self.last_change_tick,
+            self.change_tick,
+        )
     }
 
     /// Gets a reference to the [`Entity`]'s [`Component`] of the given type. This will fail if the
@@ -544,7 +543,16 @@ where
     #[inline]
     pub fn is_empty(&self) -> bool {
         // SAFE: NopFetch does not access any members while &self ensures no one has exclusive access
-        unsafe { self.iter_unsafe::<NopFetch<Q::State>>().next().is_none() }
+        unsafe {
+            self.state
+                .iter_unchecked_manual::<NopFetch<Q::State>>(
+                    self.world,
+                    self.last_change_tick,
+                    self.change_tick,
+                )
+                .next()
+                .is_none()
+        }
     }
 }
 
