@@ -43,7 +43,7 @@ use std::{
 pub trait WorldQuery {
     type Fetch: for<'a> Fetch<'a, State = Self::State>;
     type State: FetchState;
-    type ReadOnlyFetch; // This doesn't seem to work due to infinities in Or<> : for<'a> Fetch<'a, State = Self::State>;
+    type ReadOnlyFetch: for<'a> Fetch<'a, State = Self::State> + ReadOnlyFetch;
 }
 
 pub trait Fetch<'w>: Sized {
@@ -426,6 +426,9 @@ pub struct ReadOnlyWriteFetch<T> {
     last_change_tick: u32,
     change_tick: u32,
 }
+
+/// SAFETY: access is read only
+unsafe impl<T> ReadOnlyFetch for ReadOnlyWriteFetch<T> {}
 
 impl<T> Clone for ReadOnlyWriteFetch<T> {
     fn clone(&self) -> Self {
