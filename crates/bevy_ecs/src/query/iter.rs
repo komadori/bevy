@@ -226,7 +226,7 @@ where
     /// references to the same component, leading to unique reference aliasing.
     ///.
     /// It is always safe for shared access.
-    unsafe fn fetch_next_aliased_unchecked<'a>(&mut self) -> Option<[QF::Item; K]>
+    unsafe fn fetch_next_aliased_unchecked(&mut self) -> Option<[QF::Item; K]>
     where
         QF: Clone,
         F::Fetch: Clone,

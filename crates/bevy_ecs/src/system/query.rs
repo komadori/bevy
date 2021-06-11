@@ -508,7 +508,7 @@ where
     /// # let _check_that_its_a_system = player_scoring_system.system();
     /// ```
     ///
-    /// This can only return immutable results, see [`Self::single_mut`] for write-queries.
+    /// This can only return immutable data, see [`Self::single_mut`] for mutable access.
     pub fn single(&self) -> Result<<Q::ReadOnlyFetch as Fetch<'w>>::Item, QuerySingleError> {
         let mut query = self.iter();
         let first = query.next();
