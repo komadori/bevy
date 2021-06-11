@@ -144,7 +144,7 @@ where
 
     /// Returns an [`Iterator`] over the query results.
     ///
-    /// This can only be called for read-only queries, see [`Self::iter_mut`] for write-queries.
+    /// This can only return immutable data, see [`Self::iter_mut`] for mutable queries.
     #[inline]
     pub fn iter(&self) -> QueryIter<'w, '_, Q, Q::ReadOnlyFetch, F> {
         // SAFE: system runs without conflicts with other systems.
@@ -156,7 +156,7 @@ where
     }
 
     /// Returns an [`Iterator`] over all possible combinations of `K` query results without repetition.
-    /// This can only be called for read-only queries
+    /// This can only return immutable data
     ///
     ///  For permutations of size K of query returning N results, you will get:
     /// - if K == N: one permutation of all query results
@@ -260,7 +260,7 @@ where
     /// Runs `f` on each query result. This is faster than the equivalent iter() method, but cannot
     /// be chained like a normal [`Iterator`].
     ///
-    /// This can only be called for read-only queries, see [`Self::for_each_mut`] for write-queries.
+    /// This can only pass in immutable data, see [`Self::for_each_mut`] for mutable access.
     #[inline]
     pub fn for_each<FN: FnMut(<Q::ReadOnlyFetch as Fetch<'w>>::Item)>(&self, f: FN) {
         // SAFE: system runs without conflicts with other systems.
@@ -294,8 +294,8 @@ where
 
     /// Runs `f` on each query result in parallel using the given task pool.
     ///
-    /// This can only be called for read-only queries, see [`Self::par_for_each_mut`] for
-    /// write-queries.
+    /// This can only be called for immutable data, see [`Self::par_for_each_mut`] for
+    /// mutable access.
     #[inline]
     pub fn par_for_each<FN: Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone>(
         &self,
@@ -343,7 +343,7 @@ where
 
     /// Gets the query result for the given [`Entity`].
     ///
-    /// This can only be called for read-only queries, see [`Self::get_mut`] for write-queries.
+    /// This can only return immutable data, see [`Self::get_mut`] for mutable access.
     #[inline]
     pub fn get(
         &self,
