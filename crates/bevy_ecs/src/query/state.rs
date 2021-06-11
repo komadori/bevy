@@ -324,7 +324,13 @@ where
     ) {
         // SAFETY: query is read only
         unsafe {
-            self.for_each_unchecked::<Q::ReadOnlyFetch, FN>(world, func);
+            self.validate_world_and_update_archetypes(world);
+            self.for_each_unchecked_manual::<Q::ReadOnlyFetch, FN>(
+                world,
+                func,
+                world.last_change_tick(),
+                world.read_change_tick(),
+            );
         }
     }
 
@@ -336,7 +342,13 @@ where
     ) {
         // SAFETY: query has unique world access
         unsafe {
-            self.for_each_unchecked::<Q::Fetch, FN>(world, func);
+            self.validate_world_and_update_archetypes(world);
+            self.for_each_unchecked_manual::<Q::Fetch, FN>(
+                world,
+                func,
+                world.last_change_tick(),
+                world.read_change_tick(),
+            );
         }
     }
 
@@ -345,13 +357,13 @@ where
     /// This does not check for mutable query correctness. To be safe, make sure mutable queries
     /// have unique access to the components they query.
     #[inline]
-    pub unsafe fn for_each_unchecked<'w, QF: Fetch<'w, State = Q::State>, FN: FnMut(QF::Item)>(
+    pub unsafe fn for_each_unchecked<'w, FN: FnMut(<Q::Fetch as Fetch<'w>>::Item)>(
         &mut self,
         world: &'w World,
         func: FN,
     ) {
         self.validate_world_and_update_archetypes(world);
-        self.for_each_unchecked_manual::<QF, FN>(
+        self.for_each_unchecked_manual::<Q::Fetch, FN>(
             world,
             func,
             world.last_change_tick(),
@@ -369,7 +381,15 @@ where
     ) {
         // SAFETY: query is read only
         unsafe {
-            self.par_for_each_unchecked::<Q::ReadOnlyFetch, FN>(world, task_pool, batch_size, func);
+            self.validate_world_and_update_archetypes(world);
+            self.par_for_each_unchecked_manual::<Q::ReadOnlyFetch, FN>(
+                world,
+                task_pool,
+                batch_size,
+                func,
+                world.last_change_tick(),
+                world.read_change_tick(),
+            );
         }
     }
 
@@ -383,7 +403,15 @@ where
     ) {
         // SAFETY: query has unique world access
         unsafe {
-            self.par_for_each_unchecked::<Q::Fetch, FN>(world, task_pool, batch_size, func);
+            self.validate_world_and_update_archetypes(world);
+            self.par_for_each_unchecked_manual::<Q::Fetch, FN>(
+                world,
+                task_pool,
+                batch_size,
+                func,
+                world.last_change_tick(),
+                world.read_change_tick(),
+            );
         }
     }
 
@@ -394,8 +422,7 @@ where
     #[inline]
     pub unsafe fn par_for_each_unchecked<
         'w,
-        QF: Fetch<'w, State = Q::State>,
-        FN: Fn(QF::Item) + Send + Sync + Clone,
+        FN: Fn(<Q::Fetch as Fetch<'w>>::Item) + Send + Sync + Clone,
     >(
         &mut self,
         world: &'w World,
@@ -404,7 +431,7 @@ where
         func: FN,
     ) {
         self.validate_world_and_update_archetypes(world);
-        self.par_for_each_unchecked_manual::<QF, FN>(
+        self.par_for_each_unchecked_manual::<Q::Fetch, FN>(
             world,
             task_pool,
             batch_size,
@@ -476,7 +503,7 @@ where
     /// have unique access to the components they query.
     /// This does not validate that `world.id()` matches `self.world_id`. Calling this on a `world`
     /// with a mismatched WorldId is unsound.
-    pub unsafe fn par_for_each_unchecked_manual<
+    pub(crate) unsafe fn par_for_each_unchecked_manual<
         'w,
         's,
         QF: Fetch<'w, State = Q::State>,
