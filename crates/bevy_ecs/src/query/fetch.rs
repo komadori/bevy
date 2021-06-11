@@ -1139,7 +1139,7 @@ impl<'w, State: FetchState> Fetch<'w> for NopFetch<State> {
 
     #[inline(always)]
     fn is_dense(&self) -> bool {
-        false
+        true
     }
 
     #[inline(always)]
